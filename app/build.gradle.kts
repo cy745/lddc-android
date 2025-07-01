@@ -52,6 +52,7 @@ dependencies {
     implementation(libs.bundles.kotlin.serialization)
     implementation(libs.bundles.xmlutil)
     implementation(libs.utilcodex)
+    implementation(libs.accompanist.permissions)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

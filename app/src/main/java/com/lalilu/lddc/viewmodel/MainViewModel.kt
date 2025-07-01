@@ -1,17 +1,22 @@
 package com.lalilu.lddc.viewmodel
 
+import android.net.Uri
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.blankj.utilcode.util.LogUtils
+import com.blankj.utilcode.util.Utils
 import com.lalilu.lddc.entity.Lyric
 import com.lalilu.lddc.entity.Song
+import com.lalilu.lddc.screen.FloatScreenState
 import com.lalilu.lddc.util.LrcParser
 import com.lalilu.lddc.util.LyricResultCache
 import com.lalilu.lddc.util.QrcDecryptor
 import com.lalilu.lddc.util.QrcParser
 import com.lalilu.lddc.util.QrcXmlParser
 import com.lalilu.lddc.util.toLrcContent
+import com.lalilu.lmedia.entity.Metadata
+import com.lalilu.lmedia.wrapper.Taglib
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.compression.ContentEncoding
@@ -24,6 +29,7 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.util.encodeBase64
 import io.ktor.utils.io.jvm.javaio.toInputStream
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
@@ -67,11 +73,11 @@ class MainViewModel : ViewModel() {
 
     val keywords = mutableStateOf<String>("")
     val songs = mutableStateOf<List<Song>>(emptyList())
+    val floatScreenState = mutableStateOf<FloatScreenState>(FloatScreenState.Idle)
 
     init {
         viewModelScope.launch { checkInit() }
     }
-
 
     suspend fun search(keyword: String) = runCatching {
         checkInit()
@@ -104,6 +110,8 @@ class MainViewModel : ViewModel() {
         songs.value = songsArray
             ?.mapNotNull { runCatching { json.decodeFromJsonElement<Song>(it) }.getOrNull() }
             ?: emptyList()
+
+        songs.value
     }
 
     suspend fun getLyric(
@@ -166,6 +174,51 @@ class MainViewModel : ViewModel() {
                 roma = lyric.roma,
             )
         }
+    }
+
+    fun handleUri(uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val contentResolver = Utils.getApp().contentResolver
+            var metadata: Metadata? = null
+            contentResolver.openFileDescriptor(uri, "rw")
+                ?.use { metadata = Taglib.retrieveMetadataWithFD(it.detachFd()) }
+
+            val keywords = metadata?.keywords()
+                ?.takeIf { it.isNotBlank() }
+                ?: return@launch run {
+                    floatScreenState.value = FloatScreenState.Error("获取歌曲信息失败")
+                }
+
+            floatScreenState.value = FloatScreenState.Searching(keywords)
+
+            val str = searchAndGetLyric(keywords)
+                .getOrNull()
+                ?: return@launch run {
+                    floatScreenState.value = FloatScreenState.Error("获取歌词失败")
+                }
+
+            var writeResult = false
+            contentResolver.openFileDescriptor(uri, "rw")
+                ?.use { writeResult = Taglib.writeLyricInto(it.detachFd(), str) }
+
+            floatScreenState.value = if (writeResult) FloatScreenState.Success
+            else FloatScreenState.Error("写入歌词失败")
+        }
+    }
+
+    suspend fun searchAndGetLyric(keyword: String): Result<String?> = runCatching {
+        val songs = search(keyword).getOrNull() ?: return@runCatching null
+        val song = songs.firstOrNull() ?: return@runCatching null
+
+        val lyricItem = getLyric(
+            songId = song.id,
+            albumName = song.album?.title ?: "",
+            interval = song.interval,
+            singerName = song.singer.firstOrNull()?.name ?: "",
+            songName = song.name
+        ).getOrNull() ?: return@runCatching null
+
+        return@runCatching lyricItem.lyric
     }
 
     private suspend fun checkInit() {

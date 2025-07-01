@@ -15,4 +15,8 @@ data class Metadata(
     val duration: Long,
     val dateAdded: Long,
     val dateModified: Long
-)
+) {
+    fun keywords(): String {
+        return "$title $artist $album".replace("null", "")
+    }
+}

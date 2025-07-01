@@ -1,13 +1,17 @@
 package com.lalilu.lddc
 
+import android.Manifest
 import android.content.ClipData
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,6 +46,9 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewModelScope
 import com.blankj.utilcode.util.ToastUtils
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.PermissionStatus
+import com.google.accompanist.permissions.rememberPermissionState
 import com.lalilu.lddc.component.SongCard
 import com.lalilu.lddc.entity.Lyric
 import com.lalilu.lddc.ui.theme.LddcTheme
@@ -52,83 +59,107 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     private val viewModel by viewModels<MainViewModel>()
 
-    @OptIn(ExperimentalMaterial3Api::class)
+    val REQUIRE_PERMISSIONS = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        Manifest.permission.READ_MEDIA_AUDIO
+    } else {
+        Manifest.permission.READ_EXTERNAL_STORAGE
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             LddcTheme {
                 var showingLyric: Lyric? by remember { mutableStateOf<Lyric?>(null) }
+                val permission = rememberPermissionState(permission = REQUIRE_PERMISSIONS)
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     bottomBar = {
-                        BottomAppBar {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                TextField(
+                        AnimatedVisibility(visible = permission.status == PermissionStatus.Granted) {
+                            BottomAppBar {
+                                Row(
                                     modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(50)),
-                                    shape = RoundedCornerShape(50),
-                                    value = viewModel.keywords.value,
-                                    onValueChange = { viewModel.keywords.value = it },
-                                    colors = TextFieldDefaults.colors(
-                                        focusedIndicatorColor = Color.Transparent,
-                                        unfocusedIndicatorColor = Color.Transparent,
-                                        errorIndicatorColor = Color.Transparent,
-                                        disabledIndicatorColor = Color.Transparent
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    TextField(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(50)),
+                                        shape = RoundedCornerShape(50),
+                                        value = viewModel.keywords.value,
+                                        onValueChange = { viewModel.keywords.value = it },
+                                        colors = TextFieldDefaults.colors(
+                                            focusedIndicatorColor = Color.Transparent,
+                                            unfocusedIndicatorColor = Color.Transparent,
+                                            errorIndicatorColor = Color.Transparent,
+                                            disabledIndicatorColor = Color.Transparent
+                                        )
                                     )
-                                )
-                                Button(onClick = {
-                                    viewModel.viewModelScope.launch {
-                                        viewModel.search(viewModel.keywords.value)
+                                    Button(onClick = {
+                                        viewModel.viewModelScope.launch {
+                                            viewModel.search(viewModel.keywords.value)
+                                        }
+                                    }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Search,
+                                            contentDescription = "Search button"
+                                        )
                                     }
-                                }) {
-                                    Icon(
-                                        imageVector = Icons.Default.Search,
-                                        contentDescription = "Search button"
-                                    )
                                 }
                             }
                         }
                     }
                 ) { innerPadding ->
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding)
-                            .padding(horizontal = 20.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(vertical = 16.dp)
-                    ) {
-                        items(
-                            items = viewModel.songs.value
+                    if (permission.status == PermissionStatus.Granted) {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding)
+                                .padding(horizontal = 20.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(vertical = 16.dp)
                         ) {
-                            SongCard(
-                                modifier = Modifier.fillMaxWidth(),
-                                title = it.title,
-                                albumName = it.album?.title ?: "",
-                                artistsName = remember(it) { it.singer.joinToString(separator = "/") { it.name } },
-                                onClick = {
-                                    viewModel.viewModelScope.launch {
-                                        viewModel.getLyric(
-                                            songId = it.id,
-                                            albumName = it.album?.title ?: "",
-                                            interval = it.interval,
-                                            singerName = it.singer.firstOrNull()?.name ?: "",
-                                            songName = it.name
-                                        ).getOrNull()?.let {
-                                            showingLyric = it
+                            items(
+                                items = viewModel.songs.value
+                            ) {
+                                SongCard(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    title = it.title,
+                                    albumName = it.album?.title ?: "",
+                                    artistsName = remember(it) { it.singer.joinToString(separator = "/") { it.name } },
+                                    onClick = {
+                                        viewModel.viewModelScope.launch {
+                                            viewModel.getLyric(
+                                                songId = it.id,
+                                                albumName = it.album?.title ?: "",
+                                                interval = it.interval,
+                                                singerName = it.singer.firstOrNull()?.name ?: "",
+                                                songName = it.name
+                                            ).getOrNull()?.let {
+                                                showingLyric = it
+                                            }
                                         }
                                     }
-                                }
-                            )
+                                )
+                            }
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Button(onClick = { permission.launchPermissionRequest() }) {
+                                Text(
+                                    modifier = Modifier,
+                                    text = "请授予权限",
+                                    style = MaterialTheme.typography.headlineMedium
+                                )
+                            }
                         }
                     }
                 }
