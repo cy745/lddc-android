@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -6,6 +9,10 @@ plugins {
     alias(libs.plugins.ktorfit)
     alias(libs.plugins.ksp)
 }
+
+val keystoreProps = file("keystore.properties")
+    .takeIf { it.exists() }
+    ?.let { Properties().apply { load(FileInputStream(it)) } }
 
 android {
     namespace = "com.lalilu.lddc"
@@ -21,13 +28,32 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    if (keystoreProps != null) {
+        val storeFileValue = keystoreProps["storeFile"]?.toString() ?: ""
+        val storePasswordValue = keystoreProps["storePassword"]?.toString() ?: ""
+        val keyAliasValue = keystoreProps["keyAlias"]?.toString() ?: ""
+        val keyPasswordValue = keystoreProps["keyPassword"]?.toString() ?: ""
+
+        if (storeFileValue.isNotBlank() && file(storeFileValue).exists()) {
+            signingConfigs.create("release") {
+                storeFile(file(storeFileValue))
+                storePassword(storePasswordValue)
+                keyAlias(keyAliasValue)
+                keyPassword(keyPasswordValue)
+            }
+        }
+    } else {
+        throw IllegalArgumentException("keystore.properties not found")
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = kotlin.runCatching { signingConfigs["release"] }.getOrNull()
         }
     }
     compileOptions {
