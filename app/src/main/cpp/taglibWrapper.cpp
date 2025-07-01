@@ -29,7 +29,7 @@ JNIEXPORT jboolean JNICALL
 Java_com_lalilu_lmedia_wrapper_Taglib_writeLyricInto(JNIEnv *env, jobject thiz,
                                                      jint file_descriptor,
                                                      jstring lyric) {
-    TagLib::FileStream fileStream(file_descriptor, true);
+    TagLib::FileStream fileStream(file_descriptor, false);
     TagLib::FileRef fileRef(&fileStream, true, TagLib::AudioProperties::ReadStyle::Fast);
     if (fileRef.isNull()) return JNI_FALSE;
 
