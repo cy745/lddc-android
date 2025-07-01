@@ -1,5 +1,7 @@
 package com.lalilu.lddc.util
 
+import kotlin.math.abs
+
 
 data class LrcItem(
     val time: Long,
@@ -12,6 +14,24 @@ data class LrcItem(
 
 fun List<LrcItem>.toLrcContent(): String {
     return joinToString("\n") { it.toString() }
+}
+
+/**
+ * 将歌词和翻译元素混合，每一句翻译都在歌词数组中找与其时间最接近的一项，将时间改为与其一致然后再进行sorted
+ */
+fun List<LrcItem>.handleLyricWithTranslation(translation: List<LrcItem>): List<LrcItem> {
+    val newTrans = translation.map { trans ->
+        val minItem = this.minBy { abs(trans.time - it.time) }
+        val absoluteTime = abs(minItem.time - trans.time)
+
+        // 如果时间差距过大，则不处理
+        if (absoluteTime >= 100) {
+            trans
+        } else {
+            trans.copy(time = minItem.time)
+        }
+    }
+    return (this + newTrans).sortedBy { it.time }
 }
 
 object LrcParser {
@@ -63,7 +83,7 @@ object LrcParser {
             6 -> mil /= 1000
         }
 
-        return (min * 60 * 1000 + sec * 1000 + mil) / 10 * 10
+        return (min * 60 * 1000 + sec * 1000 + mil)
     }
 
     /**
@@ -74,7 +94,7 @@ object LrcParser {
 
         val minutes = time / 1000 / 60
         val seconds = time / 1000 % 60
-        val milliseconds = (time % 1000) / 10 * 10
+        val milliseconds = (time % 1000)
         return "%02d:%02d.%03d".format(minutes, seconds, milliseconds)
     }
 }

@@ -14,6 +14,7 @@ import com.lalilu.lddc.util.LyricResultCache
 import com.lalilu.lddc.util.QrcDecryptor
 import com.lalilu.lddc.util.QrcParser
 import com.lalilu.lddc.util.QrcXmlParser
+import com.lalilu.lddc.util.handleLyricWithTranslation
 import com.lalilu.lddc.util.toLrcContent
 import com.lalilu.lmedia.entity.Metadata
 import com.lalilu.lmedia.wrapper.Taglib
@@ -161,8 +162,7 @@ class MainViewModel : ViewModel() {
                 ?.takeIf { it.isNotEmpty() }
                 ?: emptyList()
 
-            val resultLyric = (lrcItems + trans)
-                .sortedBy { it.time / 10 }
+            val resultLyric = lrcItems.handleLyricWithTranslation(trans)
                 .toLrcContent()
                 .takeIf { it.isNotBlank() }
                 ?: lyricContent
