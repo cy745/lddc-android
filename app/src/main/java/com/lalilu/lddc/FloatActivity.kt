@@ -16,6 +16,7 @@ import com.blankj.utilcode.util.LogUtils
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.lalilu.lddc.screen.FloatScreen
 import com.lalilu.lddc.screen.FloatScreenAction
+import com.lalilu.lddc.screen.FloatScreenState
 import com.lalilu.lddc.ui.theme.LddcTheme
 import com.lalilu.lddc.viewmodel.MainViewModel
 
@@ -40,6 +41,9 @@ class FloatActivity : ComponentActivity() {
                 if (uri != null && result.resultCode == RESULT_OK) {
                     viewModel.handleUri(uri = uri)
                 }
+                if (result.resultCode == RESULT_CANCELED) {
+                    viewModel.floatScreenState.value = FloatScreenState.Error("用户取消了操作")
+                }
             }
 
             LaunchedEffect(Unit) {
@@ -63,6 +67,7 @@ class FloatActivity : ComponentActivity() {
                             viewModel.handleUri(uri = uri)
                         }
                     }.getOrElse {
+                        viewModel.floatScreenState.value = FloatScreenState.Error("${it.message}")
                         LogUtils.e(it)
                     }
                 }

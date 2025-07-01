@@ -84,6 +84,11 @@ fun FloatScreen(
                                 text = "异常：${stateValue.message}",
                                 style = MaterialTheme.typography.bodyLarge
                             )
+                            Button(
+                                onClick = { onAction(FloatScreenAction.Cancel("用户退出")) },
+                            ) {
+                                Text(text = "退出")
+                            }
                         }
 
                         is FloatScreenState.Searching -> {
