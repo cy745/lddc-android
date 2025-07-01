@@ -10,4 +10,8 @@ object Taglib {
 
     // TODO 加suspend 会异常
     external fun writeLyricInto(fileDescriptor: Int, lyric: String): Boolean
+
+    init {
+        System.loadLibrary("taglib")
+    }
 }
