@@ -6,8 +6,12 @@ import androidx.lifecycle.viewModelScope
 import com.blankj.utilcode.util.LogUtils
 import com.lalilu.lddc.entity.Lyric
 import com.lalilu.lddc.entity.Song
+import com.lalilu.lddc.util.LrcParser
 import com.lalilu.lddc.util.LyricResultCache
 import com.lalilu.lddc.util.QrcDecryptor
+import com.lalilu.lddc.util.QrcParser
+import com.lalilu.lddc.util.QrcXmlParser
+import com.lalilu.lddc.util.toLrcContent
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.compression.ContentEncoding
@@ -61,6 +65,7 @@ class MainViewModel : ViewModel() {
         "userip" to null,
     )
 
+    val keywords = mutableStateOf<String>("")
     val songs = mutableStateOf<List<Song>>(emptyList())
 
     init {
@@ -133,13 +138,33 @@ class MainViewModel : ViewModel() {
             )
 
             val jsonElement = response.bodyJson()
-            json.decodeFromJsonElement<Lyric>(jsonElement).run {
-                copy(
-                    lyric = QrcDecryptor.decryptLyrics(lyric) ?: lyric,
-                    trans = QrcDecryptor.decryptLyrics(trans) ?: trans,
-                    roma = QrcDecryptor.decryptLyrics(roma) ?: roma,
-                )
-            }
+            val lyric = json.decodeFromJsonElement<Lyric>(jsonElement)
+            val lyricContent = QrcDecryptor.decryptLyrics(lyric.lyric)
+                ?.let { QrcXmlParser.parseToLyricContent(it) }
+            val lrcItems = lyricContent?.let {
+                QrcParser.parse(it)
+                    .takeIf { it.isNotEmpty() }
+                    ?.map { it.toLrcItem() }
+                    ?: LrcParser.parseLyric(lyricContent)
+            } ?: emptyList()
+
+            val trans = QrcDecryptor.decryptLyrics(lyric.trans)
+                ?.let { LrcParser.parseLyric(it) }
+                ?.takeIf { it.isNotEmpty() }
+                ?: emptyList()
+
+            val resultLyric = (lrcItems + trans)
+                .sortedBy { it.time / 10 }
+                .toLrcContent()
+                .takeIf { it.isNotBlank() }
+                ?: lyricContent
+                ?: lyric.lyric
+
+            lyric.copy(
+                lyric = resultLyric,
+                trans = lyric.trans,
+                roma = lyric.roma,
+            )
         }
     }
 
